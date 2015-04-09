@@ -118,25 +118,30 @@ for(var i = 0; i < 5; i ++) {
 			_super.call(this, nes);
 			this._log = new _logcnt;
 			this._pack = [];
-			this._hook = true;
 		}
-		MMAP_EXT.prototype.regLoad = function(addr) {
-			if(this._hook) {
-				if(addr >> 13 == 1 || addr == 0x4014) {
+		var _hook = false;
+		MMAP_EXT.prototype.hook = function(v) {
+			if(v != undefined)
+				_hook = v;
+			return _hook;
+		};
+		MMAP_EXT.prototype.load = function(addr) {
+			if(_hook) {
+				/*if(addr >> 13 == 1 || addr == 0x4014) {
 					this._log.cnt([addr.toString(16), 'load']);
-				}
+				}*/
 				if(addr == 0x2007) {
 					this._pack.push([this.nes.ppu.scanline, 'l', addr]);
 				}
 			}
-			return _super.prototype.regLoad.call(this, addr);
+			return _super.prototype.load.call(this, addr);
 		};
-		MMAP_EXT.prototype.regWrite = function(addr, val) {
-			if(this._hook) {
-				if(addr >> 13 == 1 || addr == 0x4014) {
+		MMAP_EXT.prototype.write = function(addr, val) {
+			if(_hook) {
+				/*if(addr >> 13 == 1 || addr == 0x4014) {
 					this._log.cnt([addr.toString(16), 'write']);
-				}
-				if(addr >> 13 == 1) {
+				}*/
+				if(/*addr >> 13 == 1*/ addr >= 0x2000 && addr <= 0x2007 || addr >= 0x8000) {
 					this._pack.push([this.nes.ppu.scanline, 'w', addr, val]);
 				} else if(addr == 0x4014) {
 					var baseaddr = val * 0x100;
@@ -144,7 +149,7 @@ for(var i = 0; i < 5; i ++) {
 					this._pack.push([this.nes.ppu.scanline, 'd', val, data]);
 				}
 			}
-			return _super.prototype.regWrite.call(this, addr, val);
+			return _super.prototype.write.call(this, addr, val);
 		};
 		return MMAP_EXT;
 	})(JSNES.Mappers[i]);
@@ -159,6 +164,7 @@ var JSNES_EXT_CPU = (function(_super) {
 	JSNES_EXT_CPU.prototype.start = function() {
 		this.keyboard.connect(1);
 		_super.prototype.start.call(this);
+		this.mmap.hook(true);
 	};
 	JSNES_EXT_CPU.prototype.frame = function() {
         this.ppu.startFrame();
@@ -246,7 +252,7 @@ var JSNES_EXT_PPU = (function(_super) {
 				g_pipe.reg(this._recv_hndl.bind(this), 'ppu_pipe');
 				g_pipe.add_tags('ppu_pipe', 'ppu_recv');
 				this.keyboard.connect(2);
-				this.mmap._hook = false;
+				this.mmap.hook(false);
                 this.resetFps();
                 this.printFps();
                 this.fpsInterval = setInterval(function() {
@@ -285,16 +291,16 @@ var JSNES_EXT_PPU = (function(_super) {
 					if(itm[1] == 'w') {
 						var addr = itm[2];
 						var val = itm[3];
-						this.mmap.regWrite(addr, val);
+						this.mmap.write(addr, val);
 					} else if(itm[1] == 'd') {
 						var val = itm[2];
 						var data = itm[3];
 						var baseaddr = val * 0x100;
 						Array.prototype.splice.apply(this.cpu.mem, [baseaddr, 256].concat(data));
-						this.mmap.regWrite(0x4014, val);
+						this.mmap.write(0x4014, val);
 					} else if(itm[1] == 'l') {
 						var addr = itm[2];
-						this.mmap.regLoad(addr);
+						this.mmap.load(addr);
 					}
 					info_idx ++;
 				}
@@ -383,6 +389,14 @@ var game_nes = (function(_super) {
 				"value": "Start",
 			},
 		}, {
+			"name": "a",
+			"elem": "a",
+			"text": "new",
+			"attr": {
+				"href": "#",
+				"onclick": "open(location.href, '', 'toolbar=0, width=300px, height=500px');",
+			}
+		}, {
 			"name": "emulator",
 			"elem": "div",
 			"attr": {
@@ -405,6 +419,7 @@ var game_nes = (function(_super) {
 				"Homebrew": [
 					['Concentration Room', 'roms/croom/croom.nes'],
 					['LJ65', 'roms/lj65/lj65.nes'],
+					['DD2', 'roms/roms/Double Dragon 2 (Chs).nes']
 				],
 			})
 		});
